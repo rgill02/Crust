@@ -103,7 +103,7 @@ class Crust:
 		while self.keep_going:
 			#Wait for user input
 			dir_to_show = os.path.basename(os.getcwd())
-			self.write_out_and_flush("(poop) %s>" % dir_to_show)
+			self.write_out_and_flush("(crust) %s>" % dir_to_show)
 			#self.write_out_and_flush(">>>")
 			user_input = self.fin.readline()
 

@@ -8,7 +8,7 @@ import shutil
 ################################################################################
 ###                                Class Def                                 ###
 ################################################################################
-class Custom_Shell:
+class Crust:
 	"""
 	Custom shell/terminal
 	"""
@@ -27,6 +27,9 @@ class Custom_Shell:
 		self.fin = fin
 		self.fout = fout
 		self.ferr = ferr
+
+		#Define properties
+		self.keep_going = False
 
 	############################################################################
 	def write_out_and_flush(self, out_str):
@@ -95,12 +98,13 @@ class Custom_Shell:
 		RETURNS: none
 		NOTES:
 		"""
-		keep_going = True
+		self.keep_going = True
 
-		while keep_going:
+		while self.keep_going:
 			#Wait for user input
-			#self.write_out_and_flush("%s>" % os.getcwd())
-			self.write_out_and_flush(">>>")
+			dir_to_show = os.path.basename(os.getcwd())
+			self.write_out_and_flush("(poop) %s>" % dir_to_show)
+			#self.write_out_and_flush(">>>")
 			user_input = self.fin.readline()
 
 			#Parse user input
@@ -113,20 +117,38 @@ class Custom_Shell:
 					cmd_args = cmd[1:]
 
 					#Switch on cmd
-					if actual_cmd == "exit":
-						keep_going = False
-						break
-					elif actual_cmd == "pwd":
-						self.cmd_pwd(cmd_args)
-					elif actual_cmd == "cd":
-						self.cmd_cd(cmd_args)
-					elif actual_cmd == 'ls':
-						self.cmd_ls(cmd_args)
-					elif actual_cmd == 'cp':
-						self.cmd_cp(cmd_args)
-					else:
-						err_msg = "%s: command not found\n" % actual_cmd
-						self.write_err_and_flush(err_msg)
+					try:
+						if actual_cmd == "exit":
+							self.keep_going = False
+							break
+						elif actual_cmd == "pwd":
+							self.cmd_pwd(cmd_args)
+						elif actual_cmd == "cd":
+							self.cmd_cd(cmd_args)
+						elif actual_cmd == 'ls':
+							self.cmd_ls(cmd_args)
+						elif actual_cmd == 'cp':
+							self.cmd_cp(cmd_args)
+						elif actual_cmd == 'cat':
+							self.cmd_cat(cmd_args)
+						elif actual_cmd == 'mv':
+							self.cmd_mv(cmd_args)
+						elif actual_cmd == 'mkdir':
+							self.cmd_mkdir(cmd_args)
+						elif actual_cmd == 'rmdir':
+							self.cmd_rmdir(cmd_args)
+						elif actual_cmd == 'rm':
+							self.cmd_rm(cmd_args)
+						elif actual_cmd == 'touch':
+							self.cmd_touch(cmd_args)
+						elif actual_cmd == 'locate':
+							self.cmd_locate(cmd_args)
+						else:
+							err_msg = "%s: command not found\n" % actual_cmd
+							self.write_err_and_flush(err_msg)
+					except Exception as e:
+						self.write_err_and_flush("Unknown error occurred: %s\n" % type(e))
+						self.write_err_and_flush(str(e))
 
 	############################################################################
 	def cmd_pwd(self, cmd_args=[]):
@@ -346,13 +368,202 @@ class Custom_Shell:
 			for ii in range(len(cmd_args) - 1):
 				shutil.copyfile(cmd_args[ii], os.path.join(cmd_args[-1], os.path.basename(cmd_args[ii])))
 
+	############################################################################
+	def cmd_cat(self, cmd_args=[]):
+		"""
+		PURPOSE: executes 'cat' command
+		ARGS:
+			cmd_args (list): list of strings representing arguments
+		RETURNS: none
+		NOTES: may write to fout and ferr
+		"""
+		if not cmd_args:
+			#No arguments given
+			self.write_err_and_flush("cat: requires at least 1 argument\n")
+			return
+
+		cat_str = ""
+		file_to_write_to = ""
+		overwrite_file = False
+		for ii in range(len(cmd_args)):
+			cur_arg = cmd_args[ii]
+			if cur_arg == ">":
+				if len(cmd_args) == (ii + 1):
+					self.write_err_and_flush("A target file is required with use of '>'\n")
+					return
+				file_to_write_to = cmd_args[ii + 1]
+				overwrite_file = True
+				break
+			elif cur_arg == ">>":
+				if len(cmd_args) == (ii + 1):
+					self.write_err_and_flush("A target file is required with use of '>>'\n")
+					return
+				file_to_write_to = cmd_args[ii + 1]
+				overwrite_file = False
+				break
+			else:
+				try:
+					cur_file = os.path.join(os.getcwd(), cur_arg)
+					with open(cur_file, 'r') as fh:
+						cat_str += fh.read()
+				except FileNotFoundError as e:
+					self.write_err_and_flush("Could not find file '%s'\n" % cur_arg)
+					return
+
+		if file_to_write_to:
+			try:
+				full_file_write_to = os.path.join(os.getcwd(), file_to_write_to)
+				if overwrite_file:
+					with open(full_file_write_to, 'w') as fh:
+						fh.write(cat_str)
+				else:
+					with open(full_file_write_to, 'a') as fh:
+						fh.write(cat_str)
+			except Exception as e:
+				self.write_err_and_flush("Could not write to file '%s'\n" % file_to_write_to)
+				return
+		else:
+			self.write_out_and_flush(cat_str)
+
+	############################################################################
+	def cmd_mv(self, cmd_args=[]):
+		"""
+		PURPOSE: executes 'mv' command
+		ARGS:
+			cmd_args (list): list of strings representing arguments
+		RETURNS: none
+		NOTES: may write to fout and ferr
+		"""
+		if len(cmd_args) < 2:
+			#No arguments were given
+			self.write_err_and_flush("mv: requires at least 2 arguments\n")
+			return
+		else:
+			try:
+				shutil.move(cmd_args[0], cmd_args[1])
+			except shutil.SameFileError as e:
+				self.write_err_and_flush("mv: '%s' and '%s' are the same file\n" % (cmd_args[0], cmd_args[1]))
+			except PermissionError as e:
+				self.write_err_and_flush("mv: Permission denied\n")
+			except FileNotFoundError as e:
+				self.write_err_and_flush("mv: No such file or directory\n")
+
+	############################################################################
+	def cmd_mkdir(self, cmd_args=[]):
+		"""
+		PURPOSE: executes 'mkdir' command
+		ARGS:
+			cmd_args (list): list of strings representing arguments
+		RETURNS: none
+		NOTES: may write to fout and ferr
+		"""
+		if len(cmd_args) < 1:
+			#No arguments were given
+			self.write_err_and_flush("mkdir: requires 1 argument\n")
+			return
+		try:
+			os.makedirs(cmd_args[0])
+		except Exception as e:
+			self.write_err_and_flush("Could not make directory '%s'\n" % cmd_args[0])
+
+	############################################################################
+	def cmd_rmdir(self, cmd_args=[]):
+		"""
+		PURPOSE: executes 'rmdir' command
+		ARGS:
+			cmd_args (list): list of strings representing arguments
+		RETURNS: none
+		NOTES: may write to fout and ferr
+		"""
+		if len(cmd_args) < 1:
+			#No arguments were given
+			self.write_err_and_flush("rmdir: requires at least 1 argument\n")
+			return
+		for cur_arg in cmd_args:
+			try:
+				shutil.rmtree(cur_arg)
+			except NotADirectoryError as e:
+				self.write_err_and_flush("'%s' is not a directory\n" % cur_arg)
+			except Exception as e:
+				self.write_err_and_flush("Could not remove directory '%s'\n" % cur_arg)
+
+	############################################################################
+	def cmd_rm(self, cmd_args=[]):
+		"""
+		PURPOSE: executes 'rm' command
+		ARGS:
+			cmd_args (list): list of strings representing arguments
+		RETURNS: none
+		NOTES: may write to fout and ferr
+		"""
+		if len(cmd_args) < 1:
+			#No arguments were given
+			self.write_err_and_flush("rm: requires at least 1 argument\n")
+			return
+		for cur_arg in cmd_args:
+			if os.path.isdir(cur_arg):
+				self.cmd_rmdir([cur_arg])
+			else:
+				try:
+					os.remove(cur_arg)
+				except Exception as e:
+					self.write_err_and_flush("Could not remove '%s'\n" % cur_arg)
+
+	############################################################################
+	def cmd_touch(self, cmd_args=[]):
+		"""
+		PURPOSE: executes 'touch' command
+		ARGS:
+			cmd_args (list): list of strings representing arguments
+		RETURNS: none
+		NOTES: may write to fout and ferr
+		"""
+		if len(cmd_args) < 1:
+			#No arguments were given
+			self.write_err_and_flush("touch: requires at least 1 argument\n")
+			return
+
+		for cur_arg in cmd_args:
+			try:
+				with open(cur_arg, 'a') as fh:
+					pass
+			except Exception as e:
+				self.write_err_and_flush("Could not open file '%s'\n" % cur_arg)
+
+	############################################################################
+	def cmd_locate(self, cmd_args=[]):
+		"""
+		PURPOSE: executes 'locate' command
+		ARGS:
+			cmd_args (list): list of strings representing arguments
+		RETURNS: none
+		NOTES: may write to fout and ferr
+		"""
+		if len(cmd_args) < 1:
+			#No arguments were given
+			self.write_err_and_flush("locate: requires at least 1 argument\n")
+			return
+		file_to_find = cmd_args[0]
+
+		files_found = ""
+		home_dir = os.path.abspath('.').split(os.path.sep)[0] + os.sep
+		for path, subdirs, files in os.walk(home_dir):
+			for name in files:
+				if file_to_find in name:
+					file_path = os.path.join(path, name)
+					files_found += file_path + "\n"
+		if not files_found:
+			self.write_err_and_flush("Could not find '%s'\n" % file_to_find)
+		else:
+			self.write_out_and_flush(files_found)
+
 ################################################################################
 ###                                  Main                                    ###
 ################################################################################
 if __name__ == "__main__":
 	import sys
-	custom_shell = Custom_Shell(sys.stdin, sys.stdout, sys.stderr)
-	custom_shell.run()
+	crust = Crust(sys.stdin, sys.stdout, sys.stderr)
+	crust.run()
 
 ################################################################################
 ###                               End of File                                ###
